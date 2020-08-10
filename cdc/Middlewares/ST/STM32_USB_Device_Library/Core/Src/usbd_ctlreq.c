@@ -25,6 +25,8 @@
   ******************************************************************************
   */ 
 
+/* USER CODE BEGIN USBD_CTLREQ */
+
 /* Includes ------------------------------------------------------------------*/
 #include "usbd_conf.h"
 #include "usbd_ctlreq.h"
@@ -835,4 +837,5 @@ static void USBD_WinUSBGetDescriptor(USBD_HandleTypeDef *pdev, USBD_SetupReqType
   * @}
   */ 
 
+/* USER CODE END USBD_CTLREQ */
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
