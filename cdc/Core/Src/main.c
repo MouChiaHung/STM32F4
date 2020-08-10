@@ -67,9 +67,18 @@ DMA_HandleTypeDef hdma_usart2_rx;
 
 /* USER CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
-uint8_t RxData[128], TxData[128];
+//USB
+uint8_t RxData[512], TxData[512];
 volatile uint32_t data_received, data_sent;
 volatile int8_t data_out_flag = 0;
+
+//UART
+uint8_t uart_rx[8];
+uint8_t uart_rxc[2];
+uint8_t uart_tx[8];
+int iurx;
+int iutx;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -87,6 +96,30 @@ static void MX_USART2_UART_Init(void);
 /* USER CODE END PFP */
 
 /* USER CODE BEGIN 0 */
+/**
+  * @brief  Rx Transfer completed callbacks.
+  * @param  huart  Pointer to a UART_HandleTypeDef structure that contains
+  *                the configuration information for the specified UART module.
+  * @retval None
+  */
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+	//add received data to uart rx buffer
+	iurx = iurx%8;
+	uart_rx[iurx] = uart_rxc[0];
+
+#if 1 //print uart rx	buffer
+	char msg[128];
+	int len = 0;	
+	sprintf(msg, "UART GOT 0x%2x AT %d", uart_rxc[0], iurx);
+	len = strlen(msg);
+	if (len < 0 || len > 128) len = 0;
+	HAL_UART_Transmit(&huart2, (uint8_t*)msg, len, 100*len);
+#endif
+	
+	iurx += 1;
+}
+
 
 /* USER CODE END 0 */
 
@@ -126,26 +159,48 @@ int main(void)
   MX_USB_DEVICE_Init();
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
-
+	memset(uart_rx, 0xff, 8);
+	memset(uart_tx, 0xff, 8);
+	char msg[16*8];
+	char c[8];
+	int len = 0;
+	HAL_UART_Receive_DMA(&huart2, uart_rxc, 1);
+	
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+		
 
+		
   /* USER CODE END WHILE */
 
   /* USER CODE BEGIN 3 */
 		if ( data_out_flag ) {
        extern int8_t CDC_is_busy(void);
-       HAL_GPIO_TogglePin( LD3_GPIO_Port, LD3_Pin);
-       if ( CDC_is_busy()) continue;
+       HAL_GPIO_TogglePin(LD3_GPIO_Port, LD3_Pin);
+       if (CDC_is_busy()) continue;
        data_out_flag = 0;
        data_sent = data_received;
-       memmove( TxData, RxData, data_received );
+       memmove(TxData, RxData, data_received);
        data_received = 0;
-       CDC_Transmit_FS( TxData, data_sent );
+       CDC_Transmit_FS(TxData, data_sent);
+#if 1 //print uart
+			sprintf(msg, "UART RX:\n");
+			for (int i=0; i<8; i++) {
+				sprintf(c, "[%2x]", uart_rx[i]);
+				strcat(msg, c);
+				if ((i+1)%(4) == 0) {
+					strcat(msg, "\n");
+				}
+			}
+			strcat(msg, "\n");
+			len = strlen(msg);
+			if (len < 0 || len > sizeof(msg)) len = sizeof(msg);
+			HAL_UART_Transmit(&huart2, (uint8_t*)msg, len, 100*len);		
+#endif				
     }
   }
   /* USER CODE END 3 */
