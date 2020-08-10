@@ -58,8 +58,6 @@
   ******************************************************************************
   */ 
 
-/* USER CODE BEGIN USBD_CDC */
-
 /* Includes ------------------------------------------------------------------*/
 #include "usbd_cdc.h"
 #include "usbd_desc.h"
@@ -745,5 +743,4 @@ uint8_t  USBD_CDC_ReceivePacket(USBD_HandleTypeDef *pdev)
   * @}
   */ 
 
-/* USER CODE END USBD_CDC */
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

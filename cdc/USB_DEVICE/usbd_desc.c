@@ -47,8 +47,6 @@
   ******************************************************************************
   */
 
-/* USER CODE BEGIN USBD_DESC */
-
 /* Includes ------------------------------------------------------------------*/
 #include "usbd_core.h"
 #include "usbd_desc.h"
@@ -93,10 +91,10 @@
   * @{
   */
 
-#define USBD_VID     0x4702
+#define USBD_VID     0x4701
 #define USBD_LANGID_STRING     1033
 #define USBD_MANUFACTURER_STRING     "STMicroelectronics"
-#define USBD_PID_FS     0x0291
+#define USBD_PID_FS     0x0290
 #define USBD_PRODUCT_STRING_FS     "MOU STM32"
 #define USBD_SERIALNUMBER_STRING_FS     "00000000001A"
 #define USBD_CONFIGURATION_STRING_FS     "WINUSB Config"
@@ -536,5 +534,4 @@ uint8_t *USBD_WinUSBOSPropertyDescriptor(uint16_t *length)
   * @}
   */
 
-/* USER CODE END USBD_DESC */
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
