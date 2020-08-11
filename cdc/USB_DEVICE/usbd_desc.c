@@ -508,19 +508,30 @@ const uint8_t USBD_OS_STRING[8] = {
    '0',
    USB_REQ_MS_VENDOR_CODE, 
 }; 
+
+extern void LOGD(uint8_t *msg, int len);
 uint8_t *USBD_WinUSBOSStrDescriptor(uint16_t *length)
 {
-   USBD_GetString((uint8_t *)USBD_OS_STRING, USBD_StrDesc, length);
-   return USBD_StrDesc;
+	char msg[64];
+	sprintf(msg, "[%s]length:%d\n", __func__, *length);
+	LOGD((uint8_t*)msg, strlen(msg));
+  USBD_GetString((uint8_t *)USBD_OS_STRING, USBD_StrDesc, length);
+  return USBD_StrDesc;
 }
 uint8_t *USBD_WinUSBOSFeatureDescriptor(uint16_t *length)
 {
+	char msg[64];
+	sprintf(msg, "[%s]length:%d\n", __func__, *length);
+	LOGD((uint8_t*)msg, strlen(msg));
   *length = USB_LEN_OS_FEATURE_DESC;
   return USBD_WINUSB_OSFeatureDesc;
 }
 uint8_t *USBD_WinUSBOSPropertyDescriptor(uint16_t *length)
 {
-  *length = USB_LEN_OS_PROPERTY_DESC;
+  char msg[64];
+	sprintf(msg, "[%s]length:%d\n", __func__, *length);
+	LOGD((uint8_t*)msg, strlen(msg));
+	*length = USB_LEN_OS_PROPERTY_DESC;
    return USBD_WINUSB_OSPropertyDesc;
 }
 #endif // (USBD_SUPPORT_WINUSB==1)

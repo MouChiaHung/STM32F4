@@ -89,7 +89,7 @@ static void MX_I2C1_Init(void);
 static void MX_I2S3_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_USART2_UART_Init(void);
-
+void LOGD(uint8_t *msg, int len);
 /* USER CODE BEGIN PFP */
 /* Private function prototypes -----------------------------------------------*/
 
@@ -114,12 +114,16 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 	sprintf(msg, "UART GOT 0x%2x AT %d", uart_rxc[0], iurx);
 	len = strlen(msg);
 	if (len < 0 || len > 128) len = 0;
-	HAL_UART_Transmit(&huart2, (uint8_t*)msg, len, 100*len);
+	//HAL_UART_Transmit(&huart2, (uint8_t*)msg, len, 100*len);
+	LOGD((uint8_t*)msg, len);
 #endif
 	
 	iurx += 1;
 }
 
+void LOGD(uint8_t *msg, int len) {
+	HAL_UART_Transmit(&huart2, (uint8_t*)msg, len, 100*len);
+}
 
 /* USER CODE END 0 */
 
