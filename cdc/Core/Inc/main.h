@@ -59,6 +59,8 @@
 
 /* Private define ------------------------------------------------------------*/
 
+#define CS_SPI_Pin GPIO_PIN_2
+#define CS_SPI_GPIO_Port GPIOE
 #define CS_I2C_SPI_Pin GPIO_PIN_3
 #define CS_I2C_SPI_GPIO_Port GPIOE
 #define PC14_OSC32_IN_Pin GPIO_PIN_14
@@ -121,6 +123,9 @@
 #define Audio_SCL_GPIO_Port GPIOB
 #define Audio_SDA_Pin GPIO_PIN_9
 #define Audio_SDA_GPIO_Port GPIOB
+#define EXTI_SPI_Pin GPIO_PIN_0
+#define EXTI_SPI_GPIO_Port GPIOE
+#define EXTI_SPI_EXTI_IRQn EXTI0_IRQn
 #define MEMS_INT2_Pin GPIO_PIN_1
 #define MEMS_INT2_GPIO_Port GPIOE
 

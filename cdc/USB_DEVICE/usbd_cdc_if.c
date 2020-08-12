@@ -293,7 +293,7 @@ static int8_t CDC_Control_FS(uint8_t cmd, uint8_t* pbuf, uint16_t length)
 static int8_t CDC_Receive_FS(uint8_t* Buf, uint32_t *Len)
 {
   /* USER CODE BEGIN 6 */
-  extern volatile int8_t data_out_flag;
+  extern volatile int8_t usb_rxne;
 	USBD_CDC_SetRxBuffer(&hUsbDeviceFS, &Buf[0]);
   USBD_CDC_ReceivePacket(&hUsbDeviceFS);
 #define RX_DATA_LEN 512   
@@ -307,7 +307,7 @@ static int8_t CDC_Receive_FS(uint8_t* Buf, uint32_t *Len)
      memcpy(RxData+data_received, Buf, receive_len);          
      data_received += receive_len;
   }
-	data_out_flag = 1;
+	usb_rxne = SET;
   return (USBD_OK);
   /* USER CODE END 6 */
 }

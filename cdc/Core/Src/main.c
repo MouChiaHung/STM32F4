@@ -53,6 +53,7 @@
 
 /* USER CODE BEGIN Includes */
 #include "usbd_cdc_if.h"
+
 /* USER CODE END Includes */
 
 /* Private variables ---------------------------------------------------------*/
@@ -70,7 +71,7 @@ DMA_HandleTypeDef hdma_usart2_rx;
 //USB
 uint8_t RxData[512], TxData[512];
 volatile uint32_t data_received, data_sent;
-volatile int8_t data_out_flag = 0;
+volatile int8_t usb_rxne = RESET; //RESET: no data
 
 //UART
 uint8_t uart_rx[8];
@@ -78,6 +79,11 @@ uint8_t uart_rxc[2];
 uint8_t uart_tx[8];
 int iurx;
 int iutx;
+
+//SPI
+uint8_t spi_rx[8];
+uint8_t spi_tx[8];
+int8_t spi_acc = RESET; 
 
 /* USER CODE END PV */
 
@@ -89,9 +95,10 @@ static void MX_I2C1_Init(void);
 static void MX_I2S3_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_USART2_UART_Init(void);
-void LOGD(uint8_t *msg, int len);
+
 /* USER CODE BEGIN PFP */
 /* Private function prototypes -----------------------------------------------*/
+void LOGD(uint8_t *msg, int len);
 
 /* USER CODE END PFP */
 
@@ -111,12 +118,19 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 #if 1 //print uart rx	buffer
 	char msg[128];
 	int len = 0;	
-	sprintf(msg, "UART GOT 0x%2x AT %d", uart_rxc[0], iurx);
+	sprintf(msg, "UART received:0x%2x at index:%d\n", uart_rxc[0], iurx);
 	len = strlen(msg);
 	if (len < 0 || len > 128) len = 0;
 	//HAL_UART_Transmit(&huart2, (uint8_t*)msg, len, 100*len);
 	LOGD((uint8_t*)msg, len);
 #endif
+
+	if (uart_rxc[0] == 'A') {
+		spi_acc = SET;
+	}
+	else if (uart_rxc[0] == 'B') {
+		spi_acc = RESET;
+	}
 	
 	iurx += 1;
 }
@@ -170,28 +184,64 @@ int main(void)
 	int len = 0;
 	HAL_UART_Receive_DMA(&huart2, uart_rxc, 1);
 	
+	//acc config
+	HAL_GPIO_WritePin(GPIOE, CS_I2C_SPI_Pin, GPIO_PIN_RESET); //CS ON
+	spi_tx[0] = 0x20;
+	spi_tx[1] = 0x11;
+	HAL_SPI_Transmit(&hspi1, spi_tx, 2, 50*2);
+	HAL_GPIO_WritePin(GPIOE, CS_I2C_SPI_Pin, GPIO_PIN_SET); //CS OFF
+	//acc read for checking config 
+	HAL_GPIO_WritePin(GPIOE, CS_I2C_SPI_Pin, GPIO_PIN_RESET); //CS ON
+	spi_tx[0] = 0x80|0x20; 
+	HAL_SPI_Transmit(&hspi1, spi_tx, 1, 50*1);
+	HAL_SPI_Receive(&hspi1, spi_rx, 1, 50*1);
+	sprintf(msg, "CTRL_REG4:0x%x\n", spi_rx[0]);
+	LOGD((uint8_t*)msg, strlen(msg));
+	HAL_GPIO_WritePin(GPIOE, CS_I2C_SPI_Pin, GPIO_PIN_SET); //CS OFF
+	
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+		//spi task cycle
+		if (spi_acc == SET) {
+			//acc read x HB value		
+			uint16_t x = 0;
+			HAL_GPIO_WritePin(GPIOE, CS_I2C_SPI_Pin, GPIO_PIN_RESET); //CS ON
+			spi_tx[0] = 0x80|0x29; 
+			HAL_SPI_Transmit(&hspi1, spi_tx, 1, 50*1);
+			HAL_SPI_Receive(&hspi1, spi_rx, 1, 50*1);
+			//sprintf(msg, "OUT_X_H:0x%x\n", spi_rx[0]);
+			//LOGD((uint8_t*)msg, strlen(msg));
+			x |= spi_rx[0]<<8;
+			HAL_GPIO_WritePin(GPIOE, CS_I2C_SPI_Pin, GPIO_PIN_SET); //CS OFF
+			//acc read x LB value		
+			HAL_GPIO_WritePin(GPIOE, CS_I2C_SPI_Pin, GPIO_PIN_RESET); //CS ON
+			spi_tx[0] = 0x80|0x28; 
+			HAL_SPI_Transmit(&hspi1, spi_tx, 1, 50*1);
+			HAL_SPI_Receive(&hspi1, spi_rx, 1, 50*1);
+			//sprintf(msg, "OUT_X_L:0x%x\n", spi_rx[0]);
+			//LOGD((uint8_t*)msg, strlen(msg));
+			x |= spi_rx[0]<<0;
+			sprintf(msg, "X:%d(0x%x)\n", x, x);
+			LOGD((uint8_t*)msg, strlen(msg));
+			HAL_GPIO_WritePin(GPIOE, CS_I2C_SPI_Pin, GPIO_PIN_SET); //CS OFF
+		}
+		//spi_acc = RESET;
 		
-
-		
-  /* USER CODE END WHILE */
-
-  /* USER CODE BEGIN 3 */
-		if ( data_out_flag ) {
+		//usb task cycle
+		if (usb_rxne == SET) {
        extern int8_t CDC_is_busy(void);
        HAL_GPIO_TogglePin(LD3_GPIO_Port, LD3_Pin);
        if (CDC_is_busy()) continue;
-       data_out_flag = 0;
+       usb_rxne = RESET;
        data_sent = data_received;
        memmove(TxData, RxData, data_received);
        data_received = 0;
        CDC_Transmit_FS(TxData, data_sent);
-#if 1 //print uart
+#if 1 //uart print
 			sprintf(msg, "UART RX:\n");
 			for (int i=0; i<8; i++) {
 				sprintf(c, "[%2x]", uart_rx[i]);
@@ -204,8 +254,12 @@ int main(void)
 			len = strlen(msg);
 			if (len < 0 || len > sizeof(msg)) len = sizeof(msg);
 			HAL_UART_Transmit(&huart2, (uint8_t*)msg, len, 100*len);		
-#endif				
-    }
+#endif			
+		}
+				
+		HAL_Delay(100);
+		/* USER CODE END WHILE */
+  /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
 
@@ -329,7 +383,9 @@ static void MX_SPI1_Init(void)
   hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
   hspi1.Init.NSS = SPI_NSS_SOFT;
-  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_2;
+  //hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_2;
+	hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_16;
+	//hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_32;
   hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
@@ -398,7 +454,7 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOD_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(CS_I2C_SPI_GPIO_Port, CS_I2C_SPI_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOE, CS_SPI_Pin|CS_I2C_SPI_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(OTG_FS_PowerSwitchOn_GPIO_Port, OTG_FS_PowerSwitchOn_Pin, GPIO_PIN_SET);
@@ -407,12 +463,12 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIOD, LD4_Pin|LD3_Pin|LD5_Pin|LD6_Pin
                           |Audio_RST_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pin : CS_I2C_SPI_Pin */
-  GPIO_InitStruct.Pin = CS_I2C_SPI_Pin;
+  /*Configure GPIO pins : CS_SPI_Pin CS_I2C_SPI_Pin */
+  GPIO_InitStruct.Pin = CS_SPI_Pin|CS_I2C_SPI_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(CS_I2C_SPI_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
 
   /*Configure GPIO pin : OTG_FS_PowerSwitchOn_Pin */
   GPIO_InitStruct.Pin = OTG_FS_PowerSwitchOn_Pin;
@@ -428,12 +484,6 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   GPIO_InitStruct.Alternate = GPIO_AF5_SPI2;
   HAL_GPIO_Init(PDM_OUT_GPIO_Port, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : PA0 */
-  GPIO_InitStruct.Pin = GPIO_PIN_0;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /*Configure GPIO pin : BOOT1_Pin */
   GPIO_InitStruct.Pin = BOOT1_Pin;
@@ -463,6 +513,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(OTG_FS_OverCurrent_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : EXTI_SPI_Pin */
+  GPIO_InitStruct.Pin = EXTI_SPI_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(EXTI_SPI_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : MEMS_INT2_Pin */
   GPIO_InitStruct.Pin = MEMS_INT2_Pin;
