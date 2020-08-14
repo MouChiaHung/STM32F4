@@ -69,8 +69,10 @@ DMA_HandleTypeDef hdma_usart2_rx;
 /* USER CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
 //USB
-uint8_t RxData[512], TxData[512];
-volatile uint32_t data_received, data_sent;
+uint8_t usb_rx[512];
+uint8_t usb_tx[512];
+volatile uint32_t ir;
+volatile uint32_t iw;
 volatile int8_t usb_rxne = RESET; //RESET: no data
 
 //UART
@@ -79,11 +81,13 @@ uint8_t uart_rxc[2];
 uint8_t uart_tx[8];
 int iurx;
 int iutx;
+int8_t uart_dump = RESET; 
 
 //SPI
-uint8_t spi_rx[8];
-uint8_t spi_tx[8];
-int8_t spi_acc = RESET; 
+uint8_t spi_rx[512];
+uint8_t spi_tx[512];
+int8_t enable_acc = RESET; 
+int8_t enable_bridge_acc = RESET; 
 
 /* USER CODE END PV */
 
@@ -99,7 +103,7 @@ static void MX_USART2_UART_Init(void);
 /* USER CODE BEGIN PFP */
 /* Private function prototypes -----------------------------------------------*/
 void LOGD(uint8_t *msg, int len);
-
+void on_CDC_Receive_FS(uint32_t len);
 /* USER CODE END PFP */
 
 /* USER CODE BEGIN 0 */
@@ -126,10 +130,17 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 #endif
 
 	if (uart_rxc[0] == 'A') {
-		spi_acc = SET;
+		enable_acc = SET;
 	}
 	else if (uart_rxc[0] == 'B') {
-		spi_acc = RESET;
+		enable_acc = RESET;
+		uart_dump = RESET;
+	}
+	else if (uart_rxc[0] == 'C') {
+		uart_dump = SET;
+	}
+	else if (uart_rxc[0] == 'D') {
+		enable_bridge_acc = SET;
 	}
 	
 	iurx += 1;
@@ -137,6 +148,63 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 
 void LOGD(uint8_t *msg, int len) {
 	HAL_UART_Transmit(&huart2, (uint8_t*)msg, len, 100*len);
+}
+
+void on_CDC_Receive_FS(uint32_t len) {	
+	HAL_GPIO_TogglePin(LD3_GPIO_Port, LD3_Pin);
+	if (usb_rxne != SET) return;
+	extern int8_t CDC_is_busy(void);
+	if (CDC_is_busy()) return;
+	
+#if 1 //uart print	
+	char msg[64];
+	sprintf(msg, "[%s] USB ENDPOINT RECV:%d\n", __func__, len);
+	LOGD((uint8_t*)msg, strlen(msg));
+#endif
+	
+	if (enable_bridge_acc == SET) {
+		HAL_GPIO_WritePin(GPIOE, CS_I2C_SPI_Pin, GPIO_PIN_RESET); //CS ON
+		memcpy(spi_tx, usb_rx, len);
+#if 1
+		HAL_SPI_Transmit(&hspi1, spi_tx, len, 50*len);
+		int i = 0x100;
+		while(i--) {__NOP();}
+		HAL_SPI_Receive(&hspi1, spi_rx, len, 50*len);
+#else		
+		HAL_SPI_TransmitReceive(&hspi1, spi_tx, spi_rx, len, 50*len);
+#endif		
+		HAL_GPIO_WritePin(GPIOE, CS_I2C_SPI_Pin, GPIO_PIN_SET); //CS OFF
+		memcpy(usb_tx, spi_rx, len);	
+		CDC_Transmit_FS(usb_tx, len);
+	}
+	else {
+		memmove(usb_tx, usb_rx, len);
+		CDC_Transmit_FS(usb_tx, len);
+	}
+	
+	ir = 0;
+	usb_rxne = RESET;
+	HAL_GPIO_TogglePin(LD3_GPIO_Port, LD3_Pin);
+}
+
+void init_ACC() {
+	//acc config
+	HAL_GPIO_WritePin(GPIOE, CS_I2C_SPI_Pin, GPIO_PIN_RESET); //CS ON
+	spi_tx[0] = 0x20;
+	spi_tx[1] = 0x11;
+	HAL_SPI_Transmit(&hspi1, spi_tx, 2, 50*2);
+	HAL_GPIO_WritePin(GPIOE, CS_I2C_SPI_Pin, GPIO_PIN_SET); //CS OFF
+	//acc read for checking config 
+	HAL_GPIO_WritePin(GPIOE, CS_I2C_SPI_Pin, GPIO_PIN_RESET); //CS ON
+	spi_tx[0] = 0x80|0x20; 
+	HAL_SPI_Transmit(&hspi1, spi_tx, 1, 50*1);
+	HAL_SPI_Receive(&hspi1, spi_rx, 1, 50*1);
+#if 1 //uart print	
+	char msg[64];
+	sprintf(msg, "CTRL_REG4:0x%x\n", spi_rx[0]);
+	LOGD((uint8_t*)msg, strlen(msg));
+#endif	
+	HAL_GPIO_WritePin(GPIOE, CS_I2C_SPI_Pin, GPIO_PIN_SET); //CS OFF
 }
 
 /* USER CODE END 0 */
@@ -180,24 +248,9 @@ int main(void)
 	memset(uart_rx, 0xff, 8);
 	memset(uart_tx, 0xff, 8);
 	char msg[16*8];
-	char c[8];
-	int len = 0;
 	HAL_UART_Receive_DMA(&huart2, uart_rxc, 1);
 	
-	//acc config
-	HAL_GPIO_WritePin(GPIOE, CS_I2C_SPI_Pin, GPIO_PIN_RESET); //CS ON
-	spi_tx[0] = 0x20;
-	spi_tx[1] = 0x11;
-	HAL_SPI_Transmit(&hspi1, spi_tx, 2, 50*2);
-	HAL_GPIO_WritePin(GPIOE, CS_I2C_SPI_Pin, GPIO_PIN_SET); //CS OFF
-	//acc read for checking config 
-	HAL_GPIO_WritePin(GPIOE, CS_I2C_SPI_Pin, GPIO_PIN_RESET); //CS ON
-	spi_tx[0] = 0x80|0x20; 
-	HAL_SPI_Transmit(&hspi1, spi_tx, 1, 50*1);
-	HAL_SPI_Receive(&hspi1, spi_rx, 1, 50*1);
-	sprintf(msg, "CTRL_REG4:0x%x\n", spi_rx[0]);
-	LOGD((uint8_t*)msg, strlen(msg));
-	HAL_GPIO_WritePin(GPIOE, CS_I2C_SPI_Pin, GPIO_PIN_SET); //CS OFF
+	init_ACC();
 	
   /* USER CODE END 2 */
 
@@ -206,15 +259,14 @@ int main(void)
   while (1)
   {
 		//spi task cycle
-		if (spi_acc == SET) {
-			//acc read x HB value		
+		if (enable_acc == SET) {
 			uint16_t x = 0;
+#if 1
+			//acc read x HB value		
 			HAL_GPIO_WritePin(GPIOE, CS_I2C_SPI_Pin, GPIO_PIN_RESET); //CS ON
 			spi_tx[0] = 0x80|0x29; 
 			HAL_SPI_Transmit(&hspi1, spi_tx, 1, 50*1);
 			HAL_SPI_Receive(&hspi1, spi_rx, 1, 50*1);
-			//sprintf(msg, "OUT_X_H:0x%x\n", spi_rx[0]);
-			//LOGD((uint8_t*)msg, strlen(msg));
 			x |= spi_rx[0]<<8;
 			HAL_GPIO_WritePin(GPIOE, CS_I2C_SPI_Pin, GPIO_PIN_SET); //CS OFF
 			//acc read x LB value		
@@ -222,26 +274,31 @@ int main(void)
 			spi_tx[0] = 0x80|0x28; 
 			HAL_SPI_Transmit(&hspi1, spi_tx, 1, 50*1);
 			HAL_SPI_Receive(&hspi1, spi_rx, 1, 50*1);
-			//sprintf(msg, "OUT_X_L:0x%x\n", spi_rx[0]);
-			//LOGD((uint8_t*)msg, strlen(msg));
 			x |= spi_rx[0]<<0;
-			sprintf(msg, "X:%d(0x%x)\n", x, x);
+			sprintf(msg, "X:%d(0x%x)\n", (int16_t)x, x);
 			LOGD((uint8_t*)msg, strlen(msg));
 			HAL_GPIO_WritePin(GPIOE, CS_I2C_SPI_Pin, GPIO_PIN_SET); //CS OFF
+#else
+			//acc read x LB value		
+			HAL_GPIO_WritePin(GPIOE, CS_I2C_SPI_Pin, GPIO_PIN_RESET); //CS ON
+			spi_tx[0] = 0x80|0x28;
+			spi_tx[1] = 0x0;
+			HAL_SPI_TransmitReceive(&hspi1, spi_tx, spi_rx, 2, 50*2);
+			x |= spi_rx[1]<<8 | spi_rx[0];
+			sprintf(msg, "X:%d(0x%x)\n", (int16_t)x, x);
+			LOGD((uint8_t*)msg, strlen(msg));
+			HAL_GPIO_WritePin(GPIOE, CS_I2C_SPI_Pin, GPIO_PIN_SET); //CS OFF
+#endif			
 		}
-		//spi_acc = RESET;
+		//enable_acc = RESET;
 		
 		//usb task cycle
-		if (usb_rxne == SET) {
-       extern int8_t CDC_is_busy(void);
-       HAL_GPIO_TogglePin(LD3_GPIO_Port, LD3_Pin);
-       if (CDC_is_busy()) continue;
-       usb_rxne = RESET;
-       data_sent = data_received;
-       memmove(TxData, RxData, data_received);
-       data_received = 0;
-       CDC_Transmit_FS(TxData, data_sent);
-#if 1 //uart print
+		
+		//uart task cycle
+		if (uart_dump == SET) {
+			char msg[16*8];
+			char c[8];
+			int l = 0;
 			sprintf(msg, "UART RX:\n");
 			for (int i=0; i<8; i++) {
 				sprintf(c, "[%2x]", uart_rx[i]);
@@ -251,10 +308,9 @@ int main(void)
 				}
 			}
 			strcat(msg, "\n");
-			len = strlen(msg);
-			if (len < 0 || len > sizeof(msg)) len = sizeof(msg);
-			HAL_UART_Transmit(&huart2, (uint8_t*)msg, len, 100*len);		
-#endif			
+			l = strlen(msg);
+			if (l < 0 || l > sizeof(msg)) l = sizeof(msg);
+			HAL_UART_Transmit(&huart2, (uint8_t*)msg, l, 100*l);			
 		}
 				
 		HAL_Delay(100);
@@ -384,8 +440,8 @@ static void MX_SPI1_Init(void)
   hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
   hspi1.Init.NSS = SPI_NSS_SOFT;
   //hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_2;
-	hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_16;
-	//hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_32;
+	//hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_16;
+	hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_256;
   hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;

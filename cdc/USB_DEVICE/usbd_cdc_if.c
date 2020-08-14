@@ -127,8 +127,10 @@ uint8_t UserRxBufferFS[APP_RX_DATA_SIZE];
 uint8_t UserTxBufferFS[APP_TX_DATA_SIZE];
 
 /* USER CODE BEGIN PRIVATE_VARIABLES */
-extern uint8_t RxData[];
-extern volatile uint32_t data_received;
+extern uint8_t usb_rx[512];
+extern uint8_t usb_tx[512];
+extern volatile uint32_t ir;
+extern volatile uint32_t it;
 
 /* USER CODE END PRIVATE_VARIABLES */
 
@@ -293,21 +295,24 @@ static int8_t CDC_Control_FS(uint8_t cmd, uint8_t* pbuf, uint16_t length)
 static int8_t CDC_Receive_FS(uint8_t* Buf, uint32_t *Len)
 {
   /* USER CODE BEGIN 6 */
+	extern void on_CDC_Receive_FS(uint32_t len);
   extern volatile int8_t usb_rxne;
 	USBD_CDC_SetRxBuffer(&hUsbDeviceFS, &Buf[0]);
   USBD_CDC_ReceivePacket(&hUsbDeviceFS);
 #define RX_DATA_LEN 512   
-  uint32_t receive_len = *Len;
-  if ((data_received + receive_len)> RX_DATA_LEN ) {
-     receive_len = RX_DATA_LEN - data_received;
-     if ( receive_len != 0 )
-         memcpy(RxData+data_received, Buf, receive_len);     
-     data_received= RX_DATA_LEN;
+  uint32_t len = *Len;
+  if ((ir + len)> RX_DATA_LEN ) {
+     len = RX_DATA_LEN - ir;
+     if (len != 0 ) {
+         memcpy(usb_rx+ir, Buf, len);
+		 }
+     ir = RX_DATA_LEN;
   } else {     
-     memcpy(RxData+data_received, Buf, receive_len);          
-     data_received += receive_len;
+     memcpy(usb_rx+ir, Buf, len);          
+     ir += len;
   }
 	usb_rxne = SET;
+	on_CDC_Receive_FS(len);
   return (USBD_OK);
   /* USER CODE END 6 */
 }
