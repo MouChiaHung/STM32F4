@@ -302,11 +302,11 @@ static int8_t CDC_Receive_FS(uint8_t* Buf, uint32_t *Len)
 #define RX_DATA_LEN 512   
   uint32_t len = *Len;
   if ((ir + len) >= RX_DATA_LEN ) {
-     len = RX_DATA_LEN - ir;
-     if (len != 0 ) {
+     len = RX_DATA_LEN - 1 - ir;
+     if (len > 0 ) {
          memcpy(usb_rx+ir, Buf, len);
-		 }
-     ir = RX_DATA_LEN;
+     }
+     ir = RX_DATA_LEN - 1;
   } else {     
      memcpy(usb_rx+ir, Buf, len);          
      ir += len;
