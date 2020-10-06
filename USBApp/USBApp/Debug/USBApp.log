@@ -1,0 +1,4 @@
+﻿  Building 'USBApp' with toolset 'WindowsApplicationForDrivers10.0' and the 'Universal' target platform.
+  main.cpp
+  USBApp.vcxproj -> C:\src\USBApp\USBApp\Debug\USBApp.exe
+  Driver is 'Universal'.

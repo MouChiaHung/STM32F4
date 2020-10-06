@@ -1,0 +1,17 @@
+﻿  Building 'USBAppPackage' with toolset 'WindowsKernelModeDriver10.0' and the 'Desktop' target platform.
+  Stamping Debug\MyDriver.inf
+  Stamping [Version] section with DriverVer=10/01/2020,10.57.1.491
+  .......................
+  Signability test complete.
+  
+  Errors:
+  None
+  
+  Warnings:
+  None
+  
+  Catalog generation complete.
+  C:\src\USBApp\USBApp\Debug\USBAppPackage\mydriver.cat
+  Done Adding Additional Store
+  Successfully signed: C:\src\USBApp\USBApp\Debug\USBAppPackage\mydriver.cat
+  
