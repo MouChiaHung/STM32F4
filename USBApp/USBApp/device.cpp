@@ -374,7 +374,7 @@ done:
     return bResult;
 }
 
-BOOL WriteToBulkEndpoint(WINUSB_INTERFACE_HANDLE hDeviceHandle, UCHAR* pID, ULONG* len_written)
+BOOL WriteToBulkEndpoint(WINUSB_INTERFACE_HANDLE hDeviceHandle, UCHAR* pID, UCHAR* buf, ULONG len_want, ULONG* len_written)
 {
     if (hDeviceHandle==INVALID_HANDLE_VALUE || !pID || !len_written)
     {
@@ -382,8 +382,8 @@ BOOL WriteToBulkEndpoint(WINUSB_INTERFACE_HANDLE hDeviceHandle, UCHAR* pID, ULON
     }
 
     BOOL bResult = TRUE;
-    UCHAR buf[] = "Hello World";
-    ULONG len_want = strlen((const char*)buf);
+    //UCHAR buf[] = "Hello world! This message is transmitted to ENDPOINT and loop back to HOST";
+    //ULONG len_want = strlen((const char*)buf);
 
     bResult = WinUsb_WritePipe(hDeviceHandle, *pID, buf, len_want, len_written, 0);
     if(!bResult)
