@@ -73,7 +73,10 @@ uint8_t usb_rx[512];
 uint8_t usb_tx[512];
 volatile uint32_t ir;
 volatile uint32_t iw;
-volatile int8_t usb_rxne = RESET; //RESET: no data
+volatile int8_t usb_rxne = RESET; //RESET: no data in usb_rx to read
+volatile int8_t usb_txe = SET;    //RESET: no space in usb_tx to load data to write
+int tx_len = 0;
+int ret_tran = 0;
 
 //UART
 uint8_t uart_rx[8];
@@ -150,7 +153,8 @@ void LOGD(uint8_t *msg, int len) {
 	HAL_UART_Transmit(&huart2, (uint8_t*)msg, len, 100*len);
 }
 
-void on_CDC_Receive_FS(uint32_t len) {	
+void on_CDC_Receive_FS(uint32_t len) {
+	ret_tran = 0;	
 	HAL_GPIO_TogglePin(LD3_GPIO_Port, LD3_Pin);
 	if (usb_rxne != SET) return;
 	extern int8_t CDC_is_busy(void);
@@ -158,7 +162,7 @@ void on_CDC_Receive_FS(uint32_t len) {
 	
 #if 1 //uart print	
 	char msg[64];
-	sprintf(msg, "[%s] USB ENDPOINT RECV:%d\n", __func__, len);
+	sprintf(msg, "[%s] USB ENDPOINT RECV:%d bytes\n", __func__, len);
 	LOGD((uint8_t*)msg, strlen(msg));
 #endif
 	
@@ -174,12 +178,32 @@ void on_CDC_Receive_FS(uint32_t len) {
 		HAL_SPI_TransmitReceive(&hspi1, spi_tx, spi_rx, len, 50*len);
 #endif		
 		HAL_GPIO_WritePin(GPIOE, CS_I2C_SPI_Pin, GPIO_PIN_SET); //CS OFF
-		memcpy(usb_tx, spi_rx, len);	
+		memcpy(usb_tx, spi_rx, len);
 		CDC_Transmit_FS(usb_tx, len);
 	}
 	else {
-		memmove(usb_tx, usb_rx, len);
-		CDC_Transmit_FS(usb_tx, len);
+#if 0 //USB loopback method 1, fast but can not support more than 64 bytes
+		memcpy(usb_tx, usb_rx, len);	
+		ret_tran = CDC_Transmit_FS(usb_tx, len);
+#if 1 //uart print	
+		memset(msg, 0, 64);
+		sprintf(msg, "[%s] USB ENDPOINT TRAN:%d bytes (ret:%d)\n", __func__, len, ret_tran);
+		LOGD((uint8_t*)msg, strlen(msg));
+#endif
+#elif 1	//USB loopback method 2, transmit later but can support more than 64 bytes	
+		if (iw < 512) {
+			memcpy(usb_tx+iw, usb_rx, len);
+			iw += len;
+			tx_len += len;
+		}
+		else {
+			memset(usb_tx, 0, 512);
+			iw = 0;
+			tx_len = 0;
+		}
+#else
+			__NOP();
+#endif		
 	}
 	
 	ir = 0;
@@ -311,6 +335,22 @@ int main(void)
 			l = strlen(msg);
 			if (l < 0 || l > sizeof(msg)) l = sizeof(msg);
 			HAL_UART_Transmit(&huart2, (uint8_t*)msg, l, 100*l);			
+		}
+		
+		if (iw != 0) {
+			usb_txe = RESET;
+			ret_tran = CDC_Transmit_FS(usb_tx, tx_len);
+#if 1 //uart print	
+			memset(msg, 0, 64);
+			sprintf(msg, "[%s] USB ENDPOINT TRAN:%d bytes (ret:%d)\n", __func__, tx_len, ret_tran);
+			LOGD((uint8_t*)msg, strlen(msg));
+#endif			
+			iw = 0;
+			tx_len = 0;
+			usb_txe = SET;
+		}
+		else {
+			usb_txe = SET;
 		}
 				
 		HAL_Delay(100);
