@@ -149,40 +149,53 @@ Routine description:
     else {
         printf("WinUsb_ResetPipe for PipeOut failed:%s\n", GetLastErrorAsString().c_str());
     }
+
     //set pipe timeout
-    ULONG timeout = 1000;
+    ULONG timeout = 2000;
     if (WinUsb_SetPipePolicy(deviceData.WinusbHandle, pipe_id.PipeInId, PIPE_TRANSFER_TIMEOUT, sizeof(ULONG), &timeout)) {
-        printf("WinUsb_SetPipePolicy for PipeIn OK\n");   
+        printf("WinUsb_SetPipePolicy for PIPE_TRANSFER_TIMEOUT OK\n");   
     }
     else {
-        printf("WinUsb_SetPipePolicy for PipeIn failed:%s\n", GetLastErrorAsString().c_str());
+        printf("WinUsb_SetPipePolicy for PIPE_TRANSFER_TIMEOUT failed:%s\n", GetLastErrorAsString().c_str());
     }
-    if (WinUsb_SetPipePolicy(deviceData.WinusbHandle, pipe_id.PipeOutId, PIPE_TRANSFER_TIMEOUT, sizeof(ULONG), &timeout)) {
-        printf("WinUsb_SetPipePolicy for PipeOut OK\n");   
+
+    //set pipe allow to partial read
+    BOOL policy_allow_partial = true;
+    if (WinUsb_SetPipePolicy(deviceData.WinusbHandle, pipe_id.PipeInId, ALLOW_PARTIAL_READS,sizeof(UCHAR), &policy_allow_partial)) {
+        printf("WinUsb_SetPipePolicy for ALLOW_PARTIAL_READS OK\n");   
     }
     else {
-        printf("WinUsb_SetPipePolicy for PipeOut failed:%s\n", GetLastErrorAsString().c_str());
+        printf("WinUsb_SetPipePolicy for ALLOW_PARTIAL_READS failed:%s\n", GetLastErrorAsString().c_str());
     }
+    
     //write bulk
-    if (WriteToBulkEndpoint(deviceData.WinusbHandle, &pipe_id.PipeOutId, &len_written))
+    UCHAR buf_sent[] = "-*-*-*-*- Hello world! This message is firstly transmitted to ENDPOINT and then loop back to HOST -*-*-*-*-";
+    ULONG len_want_sent = strlen((const char*)buf_sent);
+    if (WriteToBulkEndpoint(deviceData.WinusbHandle, &pipe_id.PipeOutId, buf_sent, len_want_sent, &len_written))
         printf("WriteToBulkEndpoint OK:%d bytes\n", len_written);
     else
         printf("WriteToBulkEndpoint failed:%s\n", GetLastErrorAsString().c_str());
 
+    //read bulk
 #if 1
     ULONG len_read = 0;
     int len_print = 0;
     int p = 0;
     UCHAR buf_read[128];
-    if (ReadFromBulkEndpoint(deviceData.WinusbHandle, &pipe_id.PipeInId, buf_read, 128, &len_read)) {
-        printf("ReadFromBulkEndpoint OK:%d bytes\n", len_read);   
-        len_print = len_read;
-        while(len_print--)
-            printf("%c", buf_read[p++]);
-        printf("\n");
+    int repeat_read = 1;
+    while (repeat_read--) {
+        if (ReadFromBulkEndpoint(deviceData.WinusbHandle, &pipe_id.PipeInId, buf_read, 128, &len_read)) {
+            printf("ReadFromBulkEndpoint OK:%d bytes\n", len_read);   
+            len_print = len_read;
+            while(len_print--)
+                printf("%c", buf_read[p++]);
+            printf("\n");
+        }
+        else {
+            printf("ReadFromBulkEndpoint failed:%s\n", GetLastErrorAsString().c_str());
+            break;
+        }
     }
-    else
-        printf("ReadFromBulkEndpoint failed:%s\n", GetLastErrorAsString().c_str());
 #elif 0
     if (WinUsb_ResetPipe(deviceData.WinusbHandle, pipe_id.PipeInId)) {
         printf("WinUsb_ResetPipe for PipeIn OK\n");   
@@ -214,6 +227,3 @@ Routine description:
     system("pause");
     return 0;
 }
-
-
-
