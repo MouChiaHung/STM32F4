@@ -16,7 +16,7 @@ https://www.sciencedirect.com/book/9780128032770/the-definitive-guide-to-arm-cor
 
 2.This youtube video is an official STM32 tutorial video explaining how to have a skeleton of this project using Keil and CobeMX. 
 
-https://www.youtube.com/watch?v=h9T0RTu9Muc&list=PLnMKNibPkDnFFRBVD206EfnnHhQZI4Hxa&index=9&ab_channel=STMicroelectronics
+https://youtu.be/h9T0RTu9Muc
 
 3.This blog is an independent developer explaining how to modify your Keil project and in order to use winusb.sys as your STM32 board's device driver, he uses STMStudio and I read it and port it into my Keil project.
 
