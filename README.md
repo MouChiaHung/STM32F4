@@ -22,7 +22,7 @@ https://www.youtube.com/watch?v=h9T0RTu9Muc&list=PLnMKNibPkDnFFRBVD206EfnnHhQZI4
 
 https://damogranlabs.com/2018/02/stm32-usb-cdc/
 
-4. Microsoft doc explains how to use their WINUSB API to have applications communicate with an "winusb" device (a device recognized by WINDOWS as a device using winusb.sys as your STM32) board's device driver).
+4.Microsoft doc explains how to use their WINUSB API to have applications communicate with an "winusb" device (a device recognized by WINDOWS as a device using winusb.sys as your STM32) board's device driver).
 
 https://docs.microsoft.com/en-us/windows-hardware/drivers/usbcon/winusb
 
